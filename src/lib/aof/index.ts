@@ -1,9 +1,5 @@
 export * from './AppendOnly';
 
-export interface AofOptions {
-  tombstoneToken?: string;
-}
-
 export interface AofReadOptions {
   // the sequence number to start the read from
   from?: number;
@@ -14,8 +10,8 @@ export interface AofReadOptions {
 }
 
 export interface AofWriteOptions {
-  seq?: number;
   id: string;
-  data: string;
-  meta?: string;
+  tombstone?: boolean;
+  data?: string | Record<string, unknown>;
+  meta?: Record<string, unknown>;
 }

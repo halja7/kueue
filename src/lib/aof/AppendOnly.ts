@@ -1,32 +1,41 @@
-import { AofOptions, AofReadOptions, AofWriteOptions } from '.';
+import { AofWriteOptions } from '.';
 import { Log } from '../logfile';
+
+const TOMBSTONE_TOKEN = '$T$';
 
 /**
  * Logfile class
  */
 export class AppendOnly {
-  options?: AofOptions;
+  private records = new Set();
   log: Log;
 
-  constructor(log: Log, options?: AofOptions) {
-    this.options = options;
+  constructor(log: Log) {
     this.log = log;
   }
 
   /**
-   * Append line to the logfile
+   * Append data to the logfile
    */
-  async append({ seq, id, data, meta }: AofWriteOptions) {
+  async append({ id, data = '', meta = {}, tombstone }: AofWriteOptions) {
     try {
-      const line = `${seq} ${id} ${data} ${meta}`;
-      await this.log.append([line]);
+      const line = `${id} ${typeof data == 'string' ? data : JSON.stringify(data)} ${JSON.stringify(meta)}${tombstone ? ' ' + TOMBSTONE_TOKEN : ''}`;
+      await this.log.append(line);
     } catch (err: unknown) {
       // TODO: actually do something
       console.error(err);
     }
   }
 
-  async read(options: AofReadOptions) {
-    options;
+  /**
+   * Reads from last actionable line to end of file
+   * actionable == record without tombstone
+  */
+  read() {
+    return this.log.read(line => !line.includes(TOMBSTONE_TOKEN));
   }
+
+  async tombstone(id: string) {
+    await this.append({ id, tombstone: true });
+  } 
 }

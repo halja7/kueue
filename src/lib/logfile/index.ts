@@ -1,15 +1,13 @@
 export * from './Log';
 
-export interface LogfileReadOptions {
-  from?: number;
-  lines?: number;
-  offset?: number;
+export enum LogEvents {
+  WRITE_FLUSH = 'write:flush',
+  READ_LINE = 'read:line',
 }
 
 export interface Log {
-  tombstone(ids: number[]): Promise<void>;
-  append(lines: string[]): Promise<void>;
-  read(options: LogfileReadOptions): Promise<string[]>;
+  append(line: string): Promise<void>;
+  read(predicate?: (line: string) => boolean): string[];
 }
 
 export interface LogOptions {
