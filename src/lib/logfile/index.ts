@@ -1,4 +1,4 @@
-export * from "./Log"
+export * from './Log';
 
 export interface LogfileReadOptions {
   from?: number;
@@ -13,6 +13,14 @@ export interface Log {
 }
 
 export interface LogOptions {
-  // path to file
-  filename: string;
+  // The path to the logfile
+  path: string;
+  // The maximum size of the logfile in bytes
+  maxsize?: number;
+  // The maximum number of logfiles to keep
+  maxfiles?: number;
+  // Whether or not to compress the logfiles
+  compress?: boolean;
+  // Flush writes after number of bytes
+  flushAfter?: number;
 }

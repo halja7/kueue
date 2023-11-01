@@ -1,3 +1,1 @@
-export * from './lib/Aof';
-
-
+export * from './lib/aof';
