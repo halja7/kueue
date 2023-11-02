@@ -25,9 +25,7 @@ interface FSLogSeekOptions {
  */
 export class FSLog extends EventEmitter implements Log {
   private buffer = new LinkedList<string>()
-  private readStream: fs.ReadStream | null = null;
   private writeStream: fs.WriteStream;
-  private readStream: fs.ReadStream;
   private highestSequenceNumber = 0;
   open = false;
 
@@ -41,17 +39,7 @@ export class FSLog extends EventEmitter implements Log {
       highWaterMark: this.options.flushAfter ?? 500,
     });
 
-    this.writeStream.on('drain', () => {
-      this.emit(LogEvents.WRITE_FLUSH);
-      this.readStream?.close();
-    });
-
-    this.readStream = fs.createReadStream(options.path, {
-      flags: 'r',
-      highWaterMark: this.options.bufferSize ?? 500,
-      encoding: 'utf8',
-      start: 0,
-    });
+    this.seek({ offset: options.fromOffset ?? 0 });
   }
 
   private isOpen() {
@@ -76,15 +64,27 @@ export class FSLog extends EventEmitter implements Log {
     }
 
     const data = lines.map(line => `${this.highestSequenceNumber++} ${line}`);
-    const result = this.writeStream.write(`${data.join('\n')}\n`);
 
-    // if disk write succeeded, write to buffer
-    if (result === true) {
+    // force everything into memory (transactionalize the write)
+    this.writeStream.cork(); 
+
+    this.writeStream.write(`${data.join('\n')}\n`, 'utf8', (err) => {
+      if (err) {
+        // TODO: what to do here...?
+        // if something fails.. we need to rollback? nothing has flushed yet.
+        // maybe it all returns false and we consider the batch DOA
+        return;
+      }
+
       for (const line of data) {
         const [seq] = line.split(' ');
         this.buffer.add(Number(seq), line);
       }
-    }
+      this.emit(LogEvents.WRITE_FLUSH);
+    });
+
+    // flush to disk!
+    process.nextTick(this.writeStream.uncork.bind(this.writeStream));
 
     return true;
   }
@@ -123,7 +123,7 @@ export class FSLog extends EventEmitter implements Log {
     return data;
   }
 
- seek({ offset }: FSLogSeekOptions): boolean {
+  private seek({ offset }: FSLogSeekOptions): boolean {
     const fd = fs.openSync(this.options.path, 'r');
     const stats = fs.statSync(this.options.path);
     const fileSize = stats.size;
@@ -139,7 +139,7 @@ export class FSLog extends EventEmitter implements Log {
       const bytesRead = fs.readSync(fd, buffer, 0, BUFFER_SIZE, position);
       const chunk = buffer.toString('utf8', 0, bytesRead);
       // Prepend any previously read text that might contain the end of a line
-      const chunkLines = (chunk + (lines[0] || '')).split('\n');
+      const chunkLines = (chunk + (lines[0] || '')).split('\n').filter(line => line.length > 0);
 
       // Check each line in reverse to find the sequence number
       for (let i = chunkLines.length - 1; i >= 0; i--) {
@@ -166,10 +166,8 @@ export class FSLog extends EventEmitter implements Log {
         this.highestSequenceNumber = Math.max(Number(seq), this.highestSequenceNumber);
         this.buffer.add(Number(seq), line);
       }
+    } 
 
-      return true;
-    } else {
-      throw new Error(`Sequence number ${offset} not found in the log file.`);
-    }
+    return found;
   }
 }
