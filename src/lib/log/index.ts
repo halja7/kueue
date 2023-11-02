@@ -31,11 +31,9 @@ export interface LogOptions {
   compress?: boolean;
   // Flush writes after number of bytes
   flushAfter?: number;
-  // The sequence number from which to start if a 
+  // The sequence number from which to start if a
   // logfile corresponding to the log name exists
   fromOffset?: number;
 }
 
-export class LogBuffer {
-
-}
+export class LogBuffer {}

@@ -27,7 +27,7 @@ export class MemLog extends EventEmitter implements Log {
       commitOffset: () => {
         this.buffer.remove(current.seq);
         return { offset: current.seq, error: null };
-      }
+      },
     };
   }
 
@@ -43,12 +43,11 @@ export class MemLog extends EventEmitter implements Log {
 
     this.emit(LogEvents.WRITE_FLUSH);
 
-
     return true;
   }
 
   /**
-   * Returns all records in buffer with 
+   * Returns all records in buffer with
    * mechanism to commit offset and shift the buffer
    */
   read(): LogRecord[] {
@@ -58,10 +57,10 @@ export class MemLog extends EventEmitter implements Log {
         try {
           this.buffer.remove(Number(seq));
           return { offset: Number(seq), error: null };
-        } catch(err: unknown) {
-          return { 
-            offset: Number(seq), 
-            error: err instanceof Error ? err : new Error('Unknown error')
+        } catch (err: unknown) {
+          return {
+            offset: Number(seq),
+            error: err instanceof Error ? err : new Error('Unknown error'),
           };
         }
       };

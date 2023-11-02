@@ -21,10 +21,12 @@ export class LinkedList<T> {
   // Adds a new node to the end of the LinkedList
   add(seq: number, value: T): void {
     const newNode = new LinkedListNode(seq, value);
-    if (this.tail === null) { // If the list is empty
+    if (this.tail === null) {
+      // If the list is empty
       this.head = newNode;
       this.tail = newNode;
-    } else { // If the list contains at least one node
+    } else {
+      // If the list contains at least one node
       this.tail.next = newNode;
       this.tail = newNode;
     }
@@ -55,15 +57,15 @@ export class LinkedList<T> {
   }
 
   /**
-   * Immutable mapping function that returns 
-   * a new array 
+   * Immutable mapping function that returns
+   * a new array
    */
   map<U>(fn: (value: T) => U): U[] {
     const result: U[] = [];
 
     let current = this.head;
     while (current) {
-      result.push(fn(current.data))
+      result.push(fn(current.data));
       current = current.next;
     }
 

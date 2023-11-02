@@ -24,7 +24,7 @@ interface FSLogSeekOptions {
  *
  */
 export class FSLog extends EventEmitter implements Log {
-  private buffer = new LinkedList<string>()
+  private buffer = new LinkedList<string>();
   private writeStream: fs.WriteStream;
   private highestSequenceNumber = 0;
   open = false;
@@ -66,9 +66,9 @@ export class FSLog extends EventEmitter implements Log {
     const data = lines.map(line => `${this.highestSequenceNumber++} ${line}`);
 
     // force everything into memory (transactionalize the write)
-    this.writeStream.cork(); 
+    this.writeStream.cork();
 
-    this.writeStream.write(`${data.join('\n')}\n`, 'utf8', (err) => {
+    this.writeStream.write(`${data.join('\n')}\n`, 'utf8', err => {
       if (err) {
         // TODO: what to do here...?
         // if something fails.. we need to rollback? nothing has flushed yet.
@@ -98,7 +98,7 @@ export class FSLog extends EventEmitter implements Log {
       commitOffset: () => {
         this.buffer.remove(current.seq);
         return { offset: current.seq, error: null };
-      }
+      },
     };
   }
 
@@ -109,10 +109,10 @@ export class FSLog extends EventEmitter implements Log {
         try {
           this.buffer.remove(Number(seq));
           return { offset: Number(seq), error: null };
-        } catch(err: unknown) {
-          return { 
-            offset: Number(seq), 
-            error: err instanceof Error ? err : new Error('Unknown error')
+        } catch (err: unknown) {
+          return {
+            offset: Number(seq),
+            error: err instanceof Error ? err : new Error('Unknown error'),
           };
         }
       };
@@ -139,14 +139,16 @@ export class FSLog extends EventEmitter implements Log {
       const bytesRead = fs.readSync(fd, buffer, 0, BUFFER_SIZE, position);
       const chunk = buffer.toString('utf8', 0, bytesRead);
       // Prepend any previously read text that might contain the end of a line
-      const chunkLines = (chunk + (lines[0] || '')).split('\n').filter(line => line.length > 0);
+      const chunkLines = (chunk + (lines[0] || ''))
+        .split('\n')
+        .filter(line => line.length > 0);
 
       // Check each line in reverse to find the sequence number
       for (let i = chunkLines.length - 1; i >= 0; i--) {
         const lineSeqNum = parseInt(chunkLines[i].split(' ')[0], 10);
         if (!isNaN(lineSeqNum) && lineSeqNum <= offset) {
           found = true;
-          lines = chunkLines.slice(i); 
+          lines = chunkLines.slice(i);
           break;
         }
       }
@@ -163,10 +165,13 @@ export class FSLog extends EventEmitter implements Log {
       // fill up LL with lines
       for (const line of lines) {
         const [seq] = line.split(' ');
-        this.highestSequenceNumber = Math.max(Number(seq), this.highestSequenceNumber);
+        this.highestSequenceNumber = Math.max(
+          Number(seq),
+          this.highestSequenceNumber,
+        );
         this.buffer.add(Number(seq), line);
       }
-    } 
+    }
 
     return found;
   }

@@ -1,5 +1,6 @@
 {
   "name": "Kueue",
+  "description": "A simple, persisted queue for Node.js",
   "private": false,
   "version": "0.0.0",
   "main": "dist/index.js",

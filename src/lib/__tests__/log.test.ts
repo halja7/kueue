@@ -16,14 +16,14 @@ describe('In-memory Log tests', () => {
 
     await Promise.all(appends);
 
-    const records = log.read()
+    const records = log.read();
     expect(records.length).toBe(10);
 
     for (const [i, record] of records.entries()) {
       // assert for expected order
       expect(record.data).toBe(`${i} test${i}`);
       const { offset } = record.commitOffset();
-      expect(log.size() - offset)
+      expect(log.size() - offset);
     }
   });
 
@@ -38,16 +38,16 @@ describe('In-memory Log tests', () => {
       () => log.append(['test12', 'test13']), // blocked
     ];
 
-    const results = await Promise.all(appends.map((append) => append()));
+    const results = await Promise.all(appends.map(append => append()));
     const rejected = appends.filter((_, i) => !results[i]);
 
     expect(results[results.length - 1]).toBe(false); // final attempt (appends[4]) rejected
 
-    const records = log.read()
+    const records = log.read();
     expect(records.length).toBe(12); // not include test12 and test13
 
     let record;
-    while (record = log.next()) {
+    while ((record = log.next())) {
       record.commitOffset();
     }
 
@@ -57,11 +57,12 @@ describe('In-memory Log tests', () => {
     }
 
     expect(log.size()).toBe(2);
-    expect(log.read()).toEqual(expect.arrayContaining([
-      expect.objectContaining({ data: '12 test12' }),
-      expect.objectContaining({ data: '13 test13' }),
-    ]))
-
+    expect(log.read()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ data: '12 test12' }),
+        expect.objectContaining({ data: '13 test13' }),
+      ]),
+    );
   });
 });
 
@@ -94,7 +95,7 @@ describe('File system dependent Log tests', () => {
       () => log.append(['test12', 'test13']),
     ];
 
-    const results = await Promise.all(appends.map((append) => append()));
+    const results = await Promise.all(appends.map(append => append()));
     expect(results.every(result => result)).toBe(true);
 
     expect(log.size()).toBe(0); // haven't flushed to file yet
@@ -109,10 +110,10 @@ describe('File system dependent Log tests', () => {
         if (log.size() == TOTAL_APPENDS && fileData.length == TOTAL_APPENDS) {
           resolve(true);
         }
-      })
-    })
+      });
+    });
   });
-  
+
   test('persists to disk and fills buffer', async () => {
     const filename = `${Math.random().toString().split('.')[1]}.priority.log`;
     const filepath = path.join(AOF_TEST_DIR, filename);
@@ -132,12 +133,12 @@ describe('File system dependent Log tests', () => {
       () => log.append(['test6', 'test7', 'test8']),
     ];
 
-    const results = await Promise.all(appends.map((append) => append()));
+    const results = await Promise.all(appends.map(append => append()));
     expect(results.every(result => result)).toBe(true);
     expect(log.size()).toBe(0); // haven't flushed to file yet
 
-    await new Promise((resolve) => {
-      log.on(LogEvents.WRITE_FLUSH, () => { 
+    await new Promise(resolve => {
+      log.on(LogEvents.WRITE_FLUSH, () => {
         resolve(true);
       });
     });
@@ -154,7 +155,7 @@ describe('File system dependent Log tests', () => {
 
     // process a little something something
     let record;
-    while (record = log2.next()) {
+    while ((record = log2.next())) {
       record.commitOffset();
     }
 
@@ -180,15 +181,15 @@ describe('File system dependent Log tests', () => {
       () => log.append(['test12', 'test13', 'test14']),
       () => log.append(['test15', 'test16', 'test17']),
     ];
-    await Promise.all(appends.map((append) => append()));
+    await Promise.all(appends.map(append => append()));
 
-    await new Promise((resolve) => {
-      log.on(LogEvents.WRITE_FLUSH, () => { 
+    await new Promise(resolve => {
+      log.on(LogEvents.WRITE_FLUSH, () => {
         resolve(true);
       });
     });
 
-    const OFFSET = 3
+    const OFFSET = 3;
     const log2 = new FSLog({
       path: filepath,
       fromOffset: TOTAL_APPENDS - OFFSET,
@@ -204,4 +205,3 @@ describe('File system dependent Log tests', () => {
     expect(log2.next()?.data).toBe('16 test16');
   });
 });
-
