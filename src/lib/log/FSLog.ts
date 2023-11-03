@@ -76,10 +76,12 @@ export class FSLog extends EventEmitter implements Log {
         return;
       }
 
+      // console.log('flushed. buffering data: ', data);
       for (const line of data) {
         const [seq] = line.split(' ');
         this.buffer.add(Number(seq), line);
       }
+
 
       this.emit(LogEvents.WRITE_FLUSH, this.highestSequenceNumber);
     });
@@ -131,33 +133,60 @@ export class FSLog extends EventEmitter implements Log {
     const fileSize = stats.size;
     let position = fileSize;
     const BUFFER_SIZE = 1024;
-    let buffer = Buffer.alloc(BUFFER_SIZE);
     let lines: string[] = [];
     let found = false;
 
     // Read the file backwards in chunks
     while (position > 0 && !found) {
       position = Math.max(0, position - BUFFER_SIZE);
-      const bytesRead = fs.readSync(fd, buffer, 0, BUFFER_SIZE, position);
-      const chunk = buffer.toString('utf8', 0, bytesRead);
-      // Prepend any previously read text that might contain the end of a line
-      const chunkLines = (chunk + (lines[0] || ''))
-        .split('\n')
-        .filter(line => line.length > 0);
 
+      // Adjust position to ensure we start reading at the beginning of a line
+      let adjustment = 0;
+      while (position > 0 && adjustment < BUFFER_SIZE) {
+        const peekByte = Buffer.alloc(1);
+        fs.readSync(fd, peekByte, 0, 1, position - 1);
+        if (peekByte.toString('utf8') === '\n') {
+          break;
+        }
+        position--;
+        adjustment++;
+      }
+
+      // now we have only full records at the beginning
+      // we need to get to the next ending newline
+      let chunk = '';
+      let endsWithNewline = false;
+      let byteOffset = 0;
+
+      const seekNewline = (byteOffset: number) => {
+        let buffer = Buffer.alloc(BUFFER_SIZE + byteOffset);
+        const bytesRead = fs.readSync(fd, buffer, 0, BUFFER_SIZE + byteOffset, position);
+        chunk = buffer.toString('utf8', 0, bytesRead);
+        return chunk.endsWith('\n');
+      }
+
+      while (!endsWithNewline) {
+        endsWithNewline = seekNewline(++byteOffset);
+      }
+
+      // Prepend any previously read text that might contain the end of a line
+      const chunkLines = chunk.split('\n') .filter(line => line.length > 0);
+
+      lines = [...chunkLines, ...lines];
       // Check each line in reverse to find the sequence number
       for (let i = chunkLines.length - 1; i >= 0; i--) {
         const lineSeqNum = parseInt(chunkLines[i].split(' ')[0], 10);
         if (!isNaN(lineSeqNum) && lineSeqNum <= offset) {
           found = true;
-          lines = chunkLines.slice(i);
+
+          // pull off records form the current chunk
+          // up to the specified offset
+          while (Number(lines[0].split(' ')[0]) < offset) {
+            lines.shift();
+          }
+
           break;
         }
-      }
-
-      // If not found, keep the first line of this chunk to append to the next chunk
-      if (!found) {
-        lines[0] = chunkLines[0];
       }
     }
 

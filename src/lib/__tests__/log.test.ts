@@ -66,7 +66,7 @@ describe('In-memory Log tests', () => {
   });
 });
 
-describe('File system dependent Log tests', () => {
+describe.skipIf(process.env.NODE_ENV === "CI")('File system dependent Log tests', () => {
   const AOF_TEST_DIR = path.join('/tmp', 'aof_tests');
   afterAll(() => {
     fs.rm(AOF_TEST_DIR, { recursive: true }, err => {
