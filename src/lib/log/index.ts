@@ -1,9 +1,12 @@
+import { EventEmitter } from 'events';
+
 export * from './FSLog';
 export * from './MemLog';
 
 export enum LogEvents {
   WRITE_FLUSH = 'write:flush',
   READ_LINE = 'read:line',
+  COMMIT_OFFSET = 'commit:offset',
 }
 
 export interface LogRecord {
@@ -11,7 +14,7 @@ export interface LogRecord {
   commitOffset: () => { offset: number; error: Error | null };
 }
 
-export interface Log {
+export interface Log extends EventEmitter {
   size(): number;
   append(lines: string[]): Promise<boolean>;
   next(): LogRecord | null;

@@ -205,3 +205,4 @@ describe('File system dependent Log tests', () => {
     expect(log2.next()?.data).toBe('16 test16');
   });
 });
+

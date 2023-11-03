@@ -1,7 +1,9 @@
-import { KueueOptions, Message } from '.';
+import fs from 'node:fs';
+import path from 'node:path';
+import { EventEmitter } from 'node:events';
+import { KueueOptions, KueueEvents, Message } from '.';
 import { FSLog, MemLog } from '../log'
-import type { Log } from '../log';
-
+import { Log, LogEvents } from '../log';
 
 /**
  * Logfile class
@@ -16,33 +18,67 @@ import type { Log } from '../log';
  * commit(id) => () => updateOffset(id)
  *
  */
-export class Kueue {
-  log: Log;
-  cursor = 0
+export class Kueue extends EventEmitter {
+  private writeStream: fs.WriteStream | null = null;
+  private log: Log;
+  private offset = 0
+  name: string;
 
   constructor(options: KueueOptions) {
-    if (options.persistence.enabled) {
-      this.log = new FSLog({
-        path: options.persistence.path,
-        bufferSize: 200,
-        flushAfter: 500,
-      });
-    } else {
+    super();
+    this.name = options.name;
+    // default is persistence enabled
+    if (!options.persistence?.enabled) {
       this.log = new MemLog({
         bufferSize: 200,
       });
+    } else {
+      if (!options.persistence.dir) {
+        throw new Error('must specify "persistence.dir" property when persistence.enabled');
+      }
+
+      this.log = new FSLog({
+        path: path.join(options.persistence.dir, `${options.name}.log`),
+        bufferSize: 200,
+        flushAfter: 500,
+      });
+
+      this.writeStream = fs.createWriteStream(
+        path.join(options.persistence.dir, `${options.name}.offset`),
+        {
+          flags: 'a',
+          highWaterMark:  1,
+        }
+      );
     }
+
+    // set up listeners for log events
+    this.log.on(LogEvents.COMMIT_OFFSET, (seq: number) => {
+      if (this.offset !== seq) {
+        this.offset = Math.max(this.offset, seq);
+        this.writeStream?.write(`${++this.offset}\n`, 'utf8', () => {
+          this.emit(KueueEvents.UPDATE_OFFSET, this.offset);
+        });
+      }
+    });
+
+    this.log.on(LogEvents.WRITE_FLUSH, (seq: number) => {
+      this.emit(KueueEvents.LOG_FLUSH, seq);
+    });
   }
 
   /**
-   * Append data to the logfile
+   * Queue a new message
    */
   async enqueue(batch: Message[]) {
     try {
-      const line = `${id} ${
-        typeof data == 'string' ? data : JSON.stringify(data)
-      } ${JSON.stringify(meta)}${tombstone ? ' ' + TOMBSTONE_TOKEN : ''}`;
-      await this.log.append(lines);
+      const lines = batch.map(({ key, data, meta }) => {
+        let line = `${key} ${ typeof data == 'string' ? data : JSON.stringify(data) }`;
+        line += meta ? ` ${JSON.stringify(meta)}` : '';
+        return line;
+      });
+
+      return await this.log.append(lines);
     } catch (err: unknown) {
       // TODO: actually do something
       console.error(err);
@@ -50,19 +86,17 @@ export class Kueue {
   }
 
   /**
-   * Reads from last actionable line to end of file
-   * actionable == record without tombstone
+   * Returns the next message
    */
   next() {
-    return {
-      data: <next thing>,
-      commit: this.commit(data.seq).bind(this)
-    }
+    return this.log.next();
   }
 
-  private commit(seq: number) {
-    return () => {
-      this.cursor = seq;
-    };
+  /**
+   * Returns the current offset
+   */
+  lastOffset() {
+    return this.offset;
   }
 }
+

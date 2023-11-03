@@ -41,7 +41,7 @@ export class MemLog extends EventEmitter implements Log {
       this.buffer.add(seq, `${seq} ${line}`);
     }
 
-    this.emit(LogEvents.WRITE_FLUSH);
+    this.emit(LogEvents.WRITE_FLUSH, this.highestSequenceNumber);
 
     return true;
   }

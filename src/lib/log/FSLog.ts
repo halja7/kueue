@@ -80,7 +80,8 @@ export class FSLog extends EventEmitter implements Log {
         const [seq] = line.split(' ');
         this.buffer.add(Number(seq), line);
       }
-      this.emit(LogEvents.WRITE_FLUSH);
+
+      this.emit(LogEvents.WRITE_FLUSH, this.highestSequenceNumber);
     });
 
     // flush to disk!
@@ -97,6 +98,7 @@ export class FSLog extends EventEmitter implements Log {
       data: current.data,
       commitOffset: () => {
         this.buffer.remove(current.seq);
+        this.emit(LogEvents.COMMIT_OFFSET, current.seq)
         return { offset: current.seq, error: null };
       },
     };

@@ -15,15 +15,23 @@ export interface KueueOptions {
   // Enable disk persistence
   //  if true, uses FSLog implementation
   //  otherwise uses MemLog (see Log interface)
-  persistence: {
-    enabled: boolean;
-    path: string;
+  persistence?: {
+    // enabled by default
+    enabled?: boolean;
+    dir?: string;
   };
 }
 
+export enum KueueEvents {
+  UPDATE_OFFSET = 'update:offset',
+  LOG_FLUSH = 'log:flush',
+}
+
 export interface Message {
-  id: string;
-  tombstone?: boolean;
-  data?: string | Record<string, unknown>;
+  // unique key identifying the message
+  key: string;
+  // the JSON data
+  data: string | Record<string, unknown>;
+  // any meta data
   meta?: Record<string, unknown>;
 }
