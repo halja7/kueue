@@ -8,6 +8,8 @@ interface FSLogSeekOptions {
   offset: number;
 }
 
+const MAX_FILE_SIZE = 1024 /* KB */ * 1024 /* MB */ * 10; // 10MB
+
 /**
  * File system-based implementation of Log interface
  *
@@ -54,6 +56,11 @@ export class FSLog extends EventEmitter implements Log {
     }
   }
 
+  private rotateLogFile() {
+    // rotate logs and reset writeStreams
+
+  }
+
   size() {
     return this.buffer.size();
   }
@@ -66,9 +73,10 @@ export class FSLog extends EventEmitter implements Log {
     const data = lines.map(line => `${this.highestSequenceNumber++} ${line}`);
 
     // force everything into memory (transactionalize the write)
-    this.writeStream.cork();
+    // maybe we don't need this right now?
+    // this.writeStream.cork();
 
-    this.writeStream.write(`${data.join('\n')}\n`, 'utf8', err => {
+    this.writeStream.write(`${data.join('\n')}\n`, 'utf8', async err => {
       if (err) {
         // TODO: what to do here...?
         // if something fails.. we need to rollback? nothing has flushed yet.
@@ -76,18 +84,21 @@ export class FSLog extends EventEmitter implements Log {
         return;
       }
 
-      // console.log('flushed. buffering data: ', data);
       for (const line of data) {
         const [seq] = line.split(' ');
         this.buffer.add(Number(seq), line);
       }
 
+      const stats = await fs.promises.stat(this.writeStream.path);
+      if (stats.size >= MAX_FILE_SIZE) {
+        this.rotateLogFile();
+      }
 
       this.emit(LogEvents.WRITE_FLUSH, this.highestSequenceNumber);
     });
 
     // flush to disk!
-    process.nextTick(this.writeStream.uncork.bind(this.writeStream));
+    // process.nextTick(this.writeStream.uncork.bind(this.writeStream));
 
     return true;
   }
@@ -127,6 +138,18 @@ export class FSLog extends EventEmitter implements Log {
     return data;
   }
 
+  /**
+   * Seeks to the specified offset in the file and loads
+   * the buffer with all records from that point forward.
+   *
+   * TODO: if the offset is not found in the current file
+   * and the offset is less than any sequence number
+   * found in that file, then we need to seek
+   * the previous logfiles until we find
+   * the specified sequence number
+   *
+   * This implementation probably sucks.
+   */
   private seek({ offset }: FSLogSeekOptions): boolean {
     const fd = fs.openSync(this.options.path, 'r');
     const stats = fs.statSync(this.options.path);
@@ -169,11 +192,10 @@ export class FSLog extends EventEmitter implements Log {
         endsWithNewline = seekNewline(++byteOffset);
       }
 
-      // Prepend any previously read text that might contain the end of a line
       const chunkLines = chunk.split('\n') .filter(line => line.length > 0);
 
       lines = [...chunkLines, ...lines];
-      // Check each line in reverse to find the sequence number
+      // look for the sequence number in the chunk
       for (let i = chunkLines.length - 1; i >= 0; i--) {
         const lineSeqNum = parseInt(chunkLines[i].split(' ')[0], 10);
         if (!isNaN(lineSeqNum) && lineSeqNum <= offset) {
@@ -193,7 +215,7 @@ export class FSLog extends EventEmitter implements Log {
     fs.closeSync(fd);
 
     if (found) {
-      // fill up LL with lines
+      // fill up this.buffer with lines
       for (const line of lines) {
         const [seq] = line.split(' ');
         this.highestSequenceNumber = Math.max(
